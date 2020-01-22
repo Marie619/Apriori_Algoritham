@@ -15,7 +15,7 @@ object Main {
     //
     //   println(Source.fromURL(getClass.getResource("data_sample.txt")))
 
-    var path = Source.fromFile("D:\\MSCS data\\Machine Learning\\Apriori_algoritham\\src\\data.txt")
+    var path = Source.fromFile("D:\\MSCS data\\Machine Learning\\Apriori_Algoritham\\Apriori_algo\\src\\data.txt")
 
     //display the file content
     //    for (line <- path.getLines())
@@ -53,9 +53,17 @@ object Main {
     }
 
     //Before frequent itesmset
-    var count = trio.map(x => List(x._1, x._2, x._3)).flatten.groupBy(identity).map(x => (x._1, x._2.size)).toList
+
+    println("The list of the transactions")
+    println(list.takeRight(list.length-2))
+
+    //Afer one frequent itemset
+    println("Min support for transaction : "+support)
+    println("After applying First Frequent itemset we get")
+    var count = trio.map(x => List(x._1, x._2, x._3)).flatten.groupBy(identity).map(x => (x._1, x._2.size))
+      .filter(_._2 >= support).keySet.toList.sorted
     count.foreach(println)
-    println(list)
+
     //After frequent itemset
 
 

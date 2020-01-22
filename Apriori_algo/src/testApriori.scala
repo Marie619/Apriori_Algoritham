@@ -22,8 +22,9 @@ object testApriori {
       var triplet = (temp(0).trim(), temp(1).trim(), temp(2).trim())
       Triplets = triplet :: Triplets
     }
-    var count = Triplets.map(x => List(x._1, x._2, x._3)).flatten.groupBy(identity).map(x => (x._1, x._2.size)).toList
-    count.foreach(println)
+    var singleton = Triplets.map(x => List(x._1, x._2, x._3)).flatten.
+      groupBy(identity).map(x => (x._1, x._2.size)).toList
+    singleton.foreach(println)
 
 
   }
