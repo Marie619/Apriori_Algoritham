@@ -1,6 +1,7 @@
-3
+2
 0.6
 A,B,C
 A,B,D
-A,C,E
+A,C,E,
 A,B,C
+A,D,C

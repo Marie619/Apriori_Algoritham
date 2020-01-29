@@ -1,6 +1,9 @@
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.io.Source
 import scala.reflect.io.File
+import scala.util.{Failure, Success, Try}
+import scala.util.control.Breaks.{break, breakable}
 
 
 object Main {
@@ -9,86 +12,137 @@ object Main {
   def main(args: Array[String]): Unit = {
 
 
-    //    val readme: Iterator[String] = Source.fromResource("data_sample").getLines()
-    //
-    //   val path = getClass.getResource("/data_sample.txt")
-    //
-    //   println(Source.fromURL(getClass.getResource("data_sample.txt")))
+    type ItemSet = Set[String]
+    case class Item(set: ItemSet, support: Int)
+    type Transaction = List[ItemSet]
+    type FrequentItemSets = List[Item]
+    type AssociationRule = (ItemSet, ItemSet, Double)
 
-    var path = Source.fromFile("D:\\MSCS data\\Machine Learning\\Apriori_Algoritham\\Apriori_algo\\src\\data.txt")
+    def main(args: Array[String]) {
 
-    //display the file content
-    //    for (line <- path.getLines())
-    //      {
-    //        println(line)
-    //      }
-
-    var list = path.getLines().toList
-    // println(list)
-
-    //To check how many members have unique value in the list
-    //println(list.distinct.length)
+      var path = Source.fromFile("D:\\MSCS data\\Machine Learning\\Apriori_Algoritham\\Apriori_algo\\src\\data.txt")
 
 
-    //Dispaly the whole list
-    //        for( lines <- list){
-    //
-    //          println(lines)
-    //        }
-
-    var support = list(0).toInt
-    var confidence = list(1)
-
-    //This gives the whole collection in a single list
-    // list=list.takeRight(list.length-2)
-
-    var trio: List[(String, String, String)] = List()
+      var list = path.getLines().toList
+      var support = list(0).toDouble
+      var confidence = list(1).toDouble
 
 
-    for (i <- 2 to list.length - 1) // Convert Raw Strings to Triplets
-    {
-      var temp = list(i).split(",").toList
-      var triplet = (temp(0).trim(), temp(1).trim(), temp(2).trim())
-      trio = triplet :: trio
+
+      //For k frequent itemset
+
+      run(path.toString(), support, confidence)
+
+
     }
 
-    //Before frequent itesmset
-
-    println("The list of the transactions")
-    println(list.takeRight(list.length-2))
-
-    //Afer one frequent itemset
-    println("Min support for transaction : "+support)
-    println("After applying First Frequent itemset we get")
-    var count = trio.map(x => List(x._1, x._2, x._3)).flatten.groupBy(identity).map(x => (x._1, x._2.size))
-      .filter(_._2 >= support).keySet.toList.sorted
-    count.foreach(println)
-
-    //After frequent itemset
-
-
-    //    var transaction1 = list(2)
-    //    var transaction2 = list(3)
-    //    var transaction3 = list(4)
-    //
-    //
-    //
-    //    var transactions  = new ListBuffer[String]()
-    //
-    //    transactions += transaction1
-    //    transactions += transaction2
-    //    transactions += transaction3
-
-    //  println(transactions)
+    def run(file: String, support: Double, confidence: Double): Unit = {
+      getTransactions(file) match {
+        case Success(set) => {
+          time {
+            println("Running with support: " + support + ", and confidence: " + confidence)
+            val frequentItems = getFrequentItemSets(set, support)
+            println("Frequent ItemSets:\n" + frequentItems)
+            printRules(generateAssociationRules(frequentItems, confidence))
+          }
+        }
+        case Failure(e) => println(e.getMessage)
+      }
+    }
 
 
-    //    for (i <-0 to frequent.length-1){
-    //
-    //        if(frequent(i)< support)
-    //    }
+    def getTransactions(file: String): Try[Transaction] = Try {
+      Source.fromFile(file)
+        .getLines()
+        .map(_.split(" ").toSet)
+        .toList
+    }
+
+    def getFrequentItemSets(transaction: Transaction, minsup: Double): List[Item] = {
+      // Map singletons with frequency
+      val frequencyMap = transaction.flatten.foldLeft(Map[String, Int]() withDefaultValue 0) {
+        (m, x) => m + (x -> (1 + m(x)))
+      }
+
+      val transactionsNeeded = (transaction.size * minsup).toInt
+
+      // Filter Singletons
+      val currentSet = frequencyMap.filter(item => item._2 >= transactionsNeeded).toList
+      val items = currentSet.map(tuple => Item(Set(tuple._1), tuple._2))
+      // List(Item(Set(5), support), Item(Set(..), support)
+
+      // Current tuple size value
+      var k = 2
+      val result = ListBuffer(items)
+
+
+      breakable {
+        while (true) {
+          val nextItemSetK = items.flatMap(_.set)
+            .combinations(k)
+            .map(_.toSet)
+            .toList
+
+          val supportedK = nextItemSetK.map(set => Item(set, getSupport(set, transaction)))
+            .filter(_.support >= transactionsNeeded)
+
+          // Nothing more
+          if (supportedK.isEmpty)
+            break
+
+
+          result += supportedK
+          k = k + 1
+        }
+      }
+
+      result.flatten
+        .toList
+    }
+
+    def generateAssociationRules(items: FrequentItemSets, conf: Double): List[AssociationRule] = {
+
+      val map = items.map(item => item.set -> item.support)
+        .toMap
+
+      val rules = items.map { item =>
+        val set = item.set
+        set.subsets().filter(x => (x.nonEmpty && x.size != set.size))
+          .map { subset =>
+            (subset, set diff subset, map(set).toDouble / map(subset).toDouble)
+          }.toList
+      }.flatten
+
+      // Return only those confidence higher than "conf"
+      rules.filter(rule => rule._3 >= conf)
+    }
+
+    def getSupport(set: ItemSet, transaction: Transaction): Int =
+      transaction.count(line => set.subsetOf(line))
+
+
+    def printRules(rules: List[AssociationRule]): Unit = {
+      println("Association rules:")
+      rules.foreach { rule =>
+        print("( ")
+        rule._1.foreach(x => print(x + " "))
+        print(") ---> ( ")
+        rule._2.foreach(l => print(l + " "))
+        print(") = ")
+        print(rule._3 + "\n")
+      }
+    }
+
+    
+
+    def time[T](block: => T): T = {
+      val start = System.currentTimeMillis
+      val res = block
+      val totalTime = System.currentTimeMillis - start
+      println("Elapsed time: %1d ms".format(totalTime))
+      res
+    }
 
 
   }
-
-
 }
